@@ -32,10 +32,14 @@ class Post(models.Model):
     author = models.ForeignKey(Profile, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    likes = models.ManyToManyField(User, through='Like', related_name='liked_posts')
     # read_length_seconds = models.IntegerField() 100 words > 25 seconds
 
     def __str__(self):
-        return f'{self.author.username} profile'
+        return f'{self.author.user.username} profile'
+    
+    class Meta:
+        ordering = ['-created_at']
 
 class Comment(models.Model):
     body = models.TextField(max_length=5000)
@@ -46,7 +50,8 @@ class Comment(models.Model):
 
 class Like(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    post = models.ManyToManyField(Post)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 class Bookmark(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
