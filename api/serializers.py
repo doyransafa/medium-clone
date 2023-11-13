@@ -8,6 +8,9 @@ from .models import User, Profile, Tag, Post, Comment, Like, Bookmark, Follow
 
 class UserSerializer(serializers.ModelSerializer):
 
+    followers = serializers.SerializerMethodField()
+    following = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ['username', 'id', 'password', 'email']
@@ -35,16 +38,48 @@ class UserSerializer(serializers.ModelSerializer):
             'username' : user.username,
             'email' : user.email
         }
+    
+    def get_followers(self, obj):
+
+        request = self.context.get('request')
+        profile = Profile.objects.get(id = obj.id)
+        
+        followers = Follow.objects.filter(followed=profile)
+        follower_count = followers.count()
+
+        return {
+            'count' : follower_count,
+            'followers': reverse('follower_list', kwargs={'profile_id' : profile.id}, request=request)
+        }
+    
+    def get_following(self, obj):
+        pass
 
 
 class AuthorSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField(source='user.id')
     username = serializers.ReadOnlyField(source='user.username')
     about = serializers.ReadOnlyField(source='user.profile.about')
+    follower_details = serializers.SerializerMethodField()
+
+    def get_follower_details(self, obj):
+
+        request = self.context.get('request')
+        # profile = Profile.objects.get(id = obj.id)
+        
+        follower_count = Follow.objects.filter(followed=obj).count()
+        following_count = Follow.objects.filter(follower=obj).count()
+
+        return {
+            'follower_count' : follower_count,
+            'follower_list': reverse('follower_list', kwargs={'profile_id' : obj.id}, request=request),
+            'following_count' : following_count,
+            'following_list': reverse('following_list', kwargs={'profile_id' : obj.id}, request=request)
+        }
 
     class Meta:
         model = Profile
-        fields = ['id', 'username', 'about']
+        fields = ['id', 'username', 'about', 'follower_details']
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -82,7 +117,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
         comments = Comment.objects.filter(post=obj)
         return {
             'count': comments.count(),
-            'comment_details': reverse('post_comments', kwargs={'post_id': obj.id}, request=request),
+            'comments': reverse('post_comments', kwargs={'post_id': obj.id}, request=request),
         }
 
 
@@ -134,3 +169,23 @@ class CommentListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ['id', 'body', 'author', 'post', 'parent_comment', 'created_at', 'updated_at', 'sub_comments']
+
+
+class FollowerListSerializer(serializers.ModelSerializer):
+    follower = AuthorSerializer()
+
+    class Meta:
+        model = Follow
+        fields = ['follower']
+
+class FollowingListSerializer(serializers.ModelSerializer):
+    followed = AuthorSerializer()
+
+    class Meta:
+        model = Follow
+        fields = ['followed']
+
+class FollowCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Follow
+        fields = []
