@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from .permissions import IsOwnerOrReadOnly
 
 from .models import User, Profile, Tag, Post, Comment, Like, Bookmark, Follow
-from .serializers import PostDetailSerializer, PostCreateSerializer, LikeCreateSerializer, LikeDetailSerializer, UserSerializer
+from .serializers import PostDetailSerializer, PostCreateSerializer, LikeCreateSerializer, LikeDetailSerializer, UserSerializer, CommentCreateSerializer, CommentListSerializer
 from .mixins import SetAuthorMixin
 
 class RegisterUserView(generics.CreateAPIView):
@@ -56,7 +56,7 @@ class PostDetailView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
         serializer.validated_data['author'] = post_instance.author
         serializer.save()
 
-class LikeView(SetAuthorMixin, generics.ListCreateAPIView):
+class LikeListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
 
     queryset = Like.objects.all()
     
@@ -79,3 +79,20 @@ class LikeView(SetAuthorMixin, generics.ListCreateAPIView):
             return LikeDetailSerializer
         elif self.request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
             return LikeCreateSerializer
+
+class CommentListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
+
+    queryset = Comment.objects.filter(parent_comment=None)
+
+    def get_serializer_class(self):
+
+        if self.request.method == 'GET':
+            return CommentListSerializer
+        elif self.request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
+            return CommentCreateSerializer
+        
+
+class CommentDetailView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
+
+    queryset = Comment.objects.all()
+    serializer_class = CommentListSerializer

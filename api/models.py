@@ -45,8 +45,12 @@ class Comment(models.Model):
     body = models.TextField(max_length=5000)
     author = models.ForeignKey(Profile, on_delete=models.CASCADE)
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
+    parent_comment = models.ForeignKey('self', on_delete=models.CASCADE, null=True, related_name='sub_comments')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
 class Like(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

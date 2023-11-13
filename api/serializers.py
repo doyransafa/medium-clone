@@ -56,24 +56,33 @@ class PostDetailSerializer(serializers.ModelSerializer):
     author = AuthorSerializer()
     tag = TagSerializer(many=True)
     like_details = serializers.SerializerMethodField()
+    comment_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
         exclude = ['likes']
 
     def get_like_details(self, obj):
+
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            user_liked = user_liked = obj.likes.filter(id=request.user.id).exists()
+            user_liked = obj.likes.filter(id=request.user.id).exists()
         else:
             user_liked = False
 
         return {
             'user_liked': user_liked,
             'count': obj.likes.count(),
-            # will be updated accordingly
             'liked_users': reverse('post_likes', kwargs={'post_id': obj.id}, request=request),
-            # 'liked_users': 'some link'
+        }
+
+    def get_comment_details(self, obj):
+        
+        request = self.context.get('request')
+        comments = Comment.objects.filter(post=obj)
+        return {
+            'count': comments.count(),
+            'comment_details': reverse('post_comments', kwargs={'post_id': obj.id}, request=request),
         }
 
 
@@ -82,7 +91,6 @@ class PostCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = '__all__'
-
 
 class LikeDetailSerializer(serializers.ModelSerializer):
     user = AuthorSerializer(source='user.profile')
@@ -95,3 +103,34 @@ class LikeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Like
         fields = '__all__'
+
+class CommentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = '__all__'
+
+    def update(self, instance, validated_data):
+        instance.body = validated_data.get('body', instance.body)
+        instance.save()
+        return instance
+
+class RecursiveCommentSerializer(serializers.ModelSerializer):
+    sub_comments = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'body', 'author', 'created_at', 'updated_at', 'sub_comments']
+
+    def get_sub_comments(self, obj):
+        sub_comments = Comment.objects.filter(parent_comment=obj)
+        if sub_comments.exists():
+            serializer = RecursiveCommentSerializer(sub_comments, many=True)
+            return serializer.data
+        return []
+
+class CommentListSerializer(serializers.ModelSerializer):
+    sub_comments = RecursiveCommentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = ['id', 'body', 'author', 'post', 'parent_comment', 'created_at', 'updated_at', 'sub_comments']
