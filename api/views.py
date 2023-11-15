@@ -5,9 +5,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from .permissions import IsOwnerOrReadOnly
 
-from .models import User, Profile, Tag, Post, Comment, Like, Bookmark, Follow
-from .serializers import PostDetailSerializer, PostCreateSerializer, LikeCreateSerializer, LikeDetailSerializer, UserSerializer, CommentCreateSerializer, CommentListSerializer, FollowCreateSerializer, FollowingListSerializer, FollowerListSerializer
+from .models import User, Profile, Tag, Post, Comment, Like, Follow, List, BookmarkItem
+from .serializers import PostDetailSerializer, PostCreateSerializer, LikeCreateSerializer, LikeDetailSerializer, UserSerializer, CommentCreateSerializer, CommentListSerializer, FollowCreateSerializer, FollowingListSerializer, FollowerListSerializer, ListSerializer, ListDetailSerializer, BookmarkItemSerializer, BookmarkCreateSerializer
 from .mixins import SetAuthorMixin
+
+from drf_spectacular.utils import extend_schema
 
 class RegisterUserView(generics.CreateAPIView):
     serializer_class = UserSerializer
@@ -112,8 +114,8 @@ class CommentListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
             raise Http404(f'No post found with ID {post_id}!')
 
 
+@extend_schema(summary='CRUD operations \n for post comments', description='CRUD operations  for post comments')
 class CommentDetailView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
-
     queryset = Comment.objects.all()
     serializer_class = CommentListSerializer
 
@@ -165,3 +167,56 @@ class FollowingListView(generics.ListAPIView):
         profile = Profile.objects.get(id=profile_id)
         queryset = Follow.objects.filter(follower=profile)
         return queryset
+
+class ListListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
+
+    serializer_class = ListSerializer
+    queryset = List.objects.all()
+
+    def get_queryset(self):
+        profile_id = self.kwargs.get('profile_id')
+        user = User.objects.get(id=profile_id)
+        queryset = List.objects.filter(user=user)
+        return queryset
+    
+class ListDetailsView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
+    
+    def get_queryset(self):
+        profile_id = self.kwargs.get('profile_id')
+        list_id = self.kwargs.get('list_id')
+        user = User.objects.get(id=profile_id)
+        queryset = List.objects.filter(user=user)
+        return queryset
+    
+    def get_serializer_class(self):
+
+        if self.request.method == 'GET':
+            return ListDetailSerializer
+        elif self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            return ListSerializer
+
+class BookmarkItemCreateView(SetAuthorMixin, generics.CreateAPIView):
+
+    serializer_class = BookmarkCreateSerializer
+    
+    def create(self, request, *args, **kwargs):
+        
+        post_id = kwargs.get('post_id')
+        list_id = kwargs.get('list_id')
+        
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({'detail': 'No such post. Make sure to provide correct post id!'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            list = List.objects.get(id=list_id, user=request.user)
+        except List.DoesNotExist:
+            return Response({'detail': 'No such list or somebody elses list. Make sure to provide correct list id!'}, status=status.HTTP_404_NOT_FOUND)
+
+        bookmark_item, created = BookmarkItem.objects.get_or_create(post=post, list=list, user=request.user)
+
+        if created:
+            return Response({'detail': 'Item added to the list successfully.'}, status=status.HTTP_201_CREATED)
+        else:
+            bookmark_item.delete()
+            return Response({'detail': 'Item removed from the list successfully.'}, status=status.HTTP_204_NO_CONTENT)

@@ -4,12 +4,9 @@ from rest_framework.reverse import reverse
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from .models import User, Profile, Tag, Post, Comment, Like, Bookmark, Follow
+from .models import User, Profile, Tag, Post, Comment, Like, BookmarkItem, Follow, List
 
 class UserSerializer(serializers.ModelSerializer):
-
-    followers = serializers.SerializerMethodField()
-    following = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -19,7 +16,6 @@ class UserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password')
         email = validated_data.get('email')
-        print(email)
         user = User(**validated_data)
 
         try:
@@ -38,23 +34,6 @@ class UserSerializer(serializers.ModelSerializer):
             'username' : user.username,
             'email' : user.email
         }
-    
-    def get_followers(self, obj):
-
-        request = self.context.get('request')
-        profile = Profile.objects.get(id = obj.id)
-        
-        followers = Follow.objects.filter(followed=profile)
-        follower_count = followers.count()
-
-        return {
-            'count' : follower_count,
-            'followers': reverse('follower_list', kwargs={'profile_id' : profile.id}, request=request)
-        }
-    
-    def get_following(self, obj):
-        pass
-
 
 class AuthorSerializer(serializers.ModelSerializer):
     id = serializers.ReadOnlyField(source='user.id')
@@ -65,12 +44,18 @@ class AuthorSerializer(serializers.ModelSerializer):
     def get_follower_details(self, obj):
 
         request = self.context.get('request')
-        # profile = Profile.objects.get(id = obj.id)
         
         follower_count = Follow.objects.filter(followed=obj).count()
         following_count = Follow.objects.filter(follower=obj).count()
 
+        if request.user.is_authenticated:
+            profile = Profile.objects.get(id = request.user.id)
+            is_following = True if Follow.objects.filter(follower=profile, followed=obj).exists() else False
+        else:
+            is_following = False
+
         return {
+            'is_following' : is_following,
             'follower_count' : follower_count,
             'follower_list': reverse('follower_list', kwargs={'profile_id' : obj.id}, request=request),
             'following_count' : following_count,
@@ -80,7 +65,6 @@ class AuthorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = ['id', 'username', 'about', 'follower_details']
-
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -92,6 +76,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
     tag = TagSerializer(many=True)
     like_details = serializers.SerializerMethodField()
     comment_details = serializers.SerializerMethodField()
+    bookmark_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -119,7 +104,25 @@ class PostDetailSerializer(serializers.ModelSerializer):
             'count': comments.count(),
             'comments': reverse('post_comments', kwargs={'post_id': obj.id}, request=request),
         }
+    
+    def get_bookmark_details(self, obj):
+        request = self.context.get('request')
+        bookmark_details = {
+            'bookmarked_any' : False,
+            'lists' : {}
+        }
+        if request and request.user.is_authenticated:
+            lists = List.objects.filter(user=request.user)
 
+            for list in lists:
+                bookmark_details['lists'][list.id] = {
+                    'name': list.name,
+                    'post_in_list' : BookmarkItem.objects.filter(post=obj, user=request.user, list=list).exists()
+                }
+
+            bookmark_details['bookmarked_any'] = any([item['post_in_list'] for item in bookmark_details['lists'].values()])
+
+        return bookmark_details
 
 class PostCreateSerializer(serializers.ModelSerializer):
 
@@ -170,7 +173,6 @@ class CommentListSerializer(serializers.ModelSerializer):
         model = Comment
         fields = ['id', 'body', 'author', 'post', 'parent_comment', 'created_at', 'updated_at', 'sub_comments']
 
-
 class FollowerListSerializer(serializers.ModelSerializer):
     follower = AuthorSerializer()
 
@@ -189,3 +191,38 @@ class FollowCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Follow
         fields = []
+
+class ListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = List
+        fields = '__all__'
+
+class BookmarkItemSerializer(serializers.ModelSerializer):
+    post = PostDetailSerializer()
+
+    class Meta:
+        model = BookmarkItem
+        fields = ['post', 'created_at']
+
+class BookmarkCreateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = BookmarkItem
+        fields = []
+
+class ListDetailSerializer(serializers.ModelSerializer):
+    
+    posts = BookmarkItemSerializer(many=True, read_only=True)
+
+
+    # def get_posts(self, obj):
+    #     posts = BookmarkItem.objects.filter(list=obj)
+    #     return {
+    #         'count': posts.count(),
+    #         'posts': serializers.Serializer(BookmarkItem),
+    #     }
+
+    class Meta:
+        model = List
+        fields = '__all__'
