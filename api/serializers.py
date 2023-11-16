@@ -107,7 +107,6 @@ class ProfileDetailSerializer(AuthorSerializer):
     class Meta(AuthorSerializer.Meta):
         fields = AuthorSerializer.Meta.fields + ['lists', 'posts']
 
-
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag

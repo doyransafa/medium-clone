@@ -78,7 +78,7 @@ class PostDetailView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
         serializer.validated_data['author'] = post_instance.author
         serializer.save()
 
-
+@extend_schema(summary='Add or list all likes of specified post', description='GET = List of all likes. POST = Add a like to the post. Post request can be empty object!')
 class LikeListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
 
     queryset = Like.objects.all()
@@ -111,7 +111,7 @@ class LikeListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
         except Post.DoesNotExist:
             raise Http404(f'No post found with ID {post_id}!')
 
-
+@extend_schema(summary='Add or list all comments of specified post', description='GET = List of all comments. POST = Add a comment to the post.')
 class CommentListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
 
     def get_serializer_class(self):
@@ -130,7 +130,7 @@ class CommentListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
             raise Http404(f'No post found with ID {post_id}!')
 
 
-@extend_schema(summary='CRUD operations for post comments', description='CRUD operations  for post comments')
+@extend_schema(summary='CRUD operations for individual comments', description='CRUD operations for individual comments')
 class CommentDetailView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Comment.objects.all()
     serializer_class = CommentListSerializer
@@ -245,7 +245,8 @@ class ProfileDetailsView(generics.RetrieveAPIView):
 
 
 class UserPostListView(generics.ListAPIView):
-    serializer_class = ProfileDetailSerializer
+
+    serializer_class = PostDetailSerializer
     
     def get_queryset(self):
 
