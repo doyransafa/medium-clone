@@ -82,12 +82,17 @@ class ProfileDetailSerializer(AuthorSerializer):
     posts = serializers.SerializerMethodField()
     
     def get_lists(self, obj):
-        user_list_count = List.objects.filter(user=obj.user).count()
         request = self.context.get('request')
+        user_lists = List.objects.filter(user=obj.user).order_by('-created_at')
+        user_list_count = user_lists.count()
+        recent_lists = user_lists[:3]
+
+        list_serializer = ListSerializer(recent_lists, many=True)
 
         return {
             'count' : user_list_count,
-            'lists' : reverse('lists', kwargs={'profile_id' : obj.id}, request=request)
+            'all_lists' : reverse('lists', kwargs={'profile_id' : obj.id}, request=request),
+            'recent_lists' : list_serializer.data
         }
 
     def get_posts(self, obj):

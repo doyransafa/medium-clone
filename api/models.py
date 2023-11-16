@@ -18,6 +18,7 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
+
 def get_upload_path(instance, filename):
     return os.path.join('profile_pictures', instance.user.username, filename)
 
@@ -73,6 +74,7 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.title
+
 
 def upload_cover_image(instance, filename):
     username = instance.author.user.username
