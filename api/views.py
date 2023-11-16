@@ -1,12 +1,16 @@
 from django.http import Http404
+from django.db.models import Q
 
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from .permissions import IsOwnerOrReadOnly
+from rest_framework.parsers import MultiPartParser, FormParser
 
+from .permissions import IsOwnerOrReadOnly
 from .models import User, Profile, Tag, Post, Comment, Like, Follow, List, BookmarkItem
-from .serializers import PostDetailSerializer, PostCreateSerializer, LikeCreateSerializer, LikeDetailSerializer, UserSerializer, CommentCreateSerializer, CommentListSerializer, FollowCreateSerializer, FollowingListSerializer, FollowerListSerializer, ListSerializer, ListDetailSerializer, BookmarkItemSerializer, BookmarkCreateSerializer
+from .serializers import (PostDetailSerializer, PostCreateSerializer, LikeCreateSerializer, LikeDetailSerializer, UserSerializer, CommentCreateSerializer, 
+                            CommentListSerializer, FollowCreateSerializer, FollowingListSerializer, FollowerListSerializer, ListSerializer, ListDetailSerializer, 
+                            BookmarkItemSerializer, BookmarkCreateSerializer, ProfileInformationSerializer, ProfileDetailSerializer)
 from .mixins import SetAuthorMixin
 
 from drf_spectacular.utils import extend_schema
@@ -15,11 +19,17 @@ class RegisterUserView(generics.CreateAPIView):
     serializer_class = UserSerializer
     queryset = User.objects.all()
 
+class UpdateProfileView(generics.UpdateAPIView):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileInformationSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [IsOwnerOrReadOnly]
 
 class PostListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
 
     queryset = Post.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
 
@@ -27,11 +37,16 @@ class PostListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
 
         tag = self.request.query_params.get('tag')
         search = self.request.query_params.get('search', '')
+        following = self.request.query_params.get('following', False)
 
         if tag:
-            queryset = queryset.filter(tag__id=tag)
+            queryset = queryset.filter(tag__slug=tag)
         if search:
             queryset = queryset.filter(title__icontains=search)
+        if following and following.lower() == 'true':
+            user_profile = Profile.objects.get(user=self.request.user)
+            following_profiles = Follow.objects.filter(follower=user_profile).values_list('followed', flat=True)
+            queryset = queryset.filter(Q(author__in=following_profiles))
 
         return queryset
     
@@ -48,6 +63,7 @@ class PostDetailView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.all()
     serializer_class = PostDetailSerializer
     permission_classes = [IsOwnerOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_serializer_class(self):
 
@@ -114,7 +130,7 @@ class CommentListCreateView(SetAuthorMixin, generics.ListCreateAPIView):
             raise Http404(f'No post found with ID {post_id}!')
 
 
-@extend_schema(summary='CRUD operations \n for post comments', description='CRUD operations  for post comments')
+@extend_schema(summary='CRUD operations for post comments', description='CRUD operations  for post comments')
 class CommentDetailView(SetAuthorMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Comment.objects.all()
     serializer_class = CommentListSerializer
@@ -220,3 +236,20 @@ class BookmarkItemCreateView(SetAuthorMixin, generics.CreateAPIView):
         else:
             bookmark_item.delete()
             return Response({'detail': 'Item removed from the list successfully.'}, status=status.HTTP_204_NO_CONTENT)
+        
+
+class ProfileDetailsView(generics.RetrieveAPIView):
+    serializer_class = ProfileDetailSerializer
+    queryset = Profile.objects.all()
+
+
+
+class UserPostListView(generics.ListAPIView):
+    serializer_class = ProfileDetailSerializer
+    
+    def get_queryset(self):
+
+        profile_id = self.kwargs.get('profile_id')
+        return Post.objects.filter(author__user__id=profile_id)
+
+        # return super().get_queryset()

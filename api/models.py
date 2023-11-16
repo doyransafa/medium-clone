@@ -1,9 +1,11 @@
 import os
 import random
 import shutil
+from typing import Iterable, Optional
 from PIL import Image, ImageDraw, ImageFont
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils.text import slugify
 
 # Create your models here.
 
@@ -19,7 +21,6 @@ class User(AbstractUser):
 def get_upload_path(instance, filename):
     return os.path.join('profile_pictures', instance.user.username, filename)
 
-
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     about = models.TextField(max_length=5000, default='', blank=True)
@@ -31,6 +32,7 @@ class Profile(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
+        #implement a way to delete old profile pictures!
         if not self.profile_picture:
             random_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
@@ -63,10 +65,20 @@ class Profile(models.Model):
 
 class Tag(models.Model):
     title = models.CharField(max_length=50)
+    slug = models.SlugField(unique=True)
+
+    def save(self, *args, **kwargs):
+        self.slug = slugify(self.title)
+        super(Tag, self).save(*args, **kwargs)
 
     def __str__(self):
         return self.title
 
+def upload_cover_image(instance, filename):
+    username = instance.author.user.username
+    post_id = instance.id
+    path = f'media/cover_images/{username}/post_{post_id}/'
+    return os.path.join(path, filename)
 
 class Post(models.Model):
     title = models.CharField(max_length=250)
@@ -76,11 +88,16 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     likes = models.ManyToManyField(User, through='Like', related_name='liked_posts')
-    # read_length_seconds = models.IntegerField() 100 words > 25 seconds
+    read_length_minutes = models.IntegerField(null=True, default=0)
+    cover_image = models.ImageField(upload_to=upload_cover_image, null=True, default=None)
 
     def __str__(self):
         return f'{self.author.user.username} profile'
     
+    def save(self, *args, **kwargs):
+        self.read_length_minutes = round(len(self.body.split(' ')) * 0.25 / 60)
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['-created_at']
 
@@ -107,7 +124,7 @@ class List(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=150)
     public = models.BooleanField()
-    #created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class BookmarkItem(models.Model):
@@ -127,6 +144,9 @@ class Follow(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.follower.user.username} followed {self.followed.user.username}'
 
 
 class Notification(models.Model):

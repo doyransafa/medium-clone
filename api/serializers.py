@@ -64,7 +64,44 @@ class AuthorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['id', 'username', 'about', 'follower_details']
+        fields = ['id', 'username', 'about', 'follower_details', 'profile_picture']
+
+class ProfileInformationSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Profile
+        fields = ['about', 'profile_picture']
+
+    def update(self, instance, validated_data):
+        instance.profile_picture = validated_data.get('profile_picture', instance.profile_picture)
+        instance.save()
+        return instance
+
+class ProfileDetailSerializer(AuthorSerializer):
+    lists = serializers.SerializerMethodField()
+    posts = serializers.SerializerMethodField()
+    
+    def get_lists(self, obj):
+        user_list_count = List.objects.filter(user=obj.user).count()
+        request = self.context.get('request')
+
+        return {
+            'count' : user_list_count,
+            'lists' : reverse('lists', kwargs={'profile_id' : obj.id}, request=request)
+        }
+
+    def get_posts(self, obj):
+        request = self.context.get('request')
+        user_post_count = Post.objects.filter(author=obj).count()
+
+        return {
+            'post_count': user_post_count,
+            'user_posts': reverse('lists', kwargs={'profile_id':obj.id}, request=request),
+        }
+
+    class Meta(AuthorSerializer.Meta):
+        fields = AuthorSerializer.Meta.fields + ['lists', 'posts']
+
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -128,7 +165,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = '__all__'
+        exclude = ['read_length_minutes']
 
 class LikeDetailSerializer(serializers.ModelSerializer):
     user = AuthorSerializer(source='user.profile')
