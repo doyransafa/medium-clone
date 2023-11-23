@@ -21,6 +21,7 @@ Install dependencies
 
 Migrate database  
 
+    python manage.py makemigrations
     python manage.py migrate
 
 Create admin user. Needed if you want to use Admin dashboard.

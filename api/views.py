@@ -7,10 +7,10 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from .permissions import IsOwnerOrReadOnly
-from .models import User, Profile, Tag, Post, Comment, Like, Follow, List, BookmarkItem
+from .models import User, Profile, Post, Comment, Like, Follow, List, BookmarkItem
 from .serializers import (PostDetailSerializer, PostCreateSerializer, LikeCreateSerializer, LikeDetailSerializer, UserSerializer, CommentCreateSerializer, 
                             CommentListSerializer, FollowCreateSerializer, FollowingListSerializer, FollowerListSerializer, ListSerializer, ListDetailSerializer, 
-                            BookmarkItemSerializer, BookmarkCreateSerializer, ProfileInformationSerializer, ProfileDetailSerializer)
+                            BookmarkCreateSerializer, ProfileInformationSerializer, ProfileDetailSerializer)
 from .mixins import SetAuthorMixin
 
 from drf_spectacular.utils import extend_schema
@@ -241,7 +241,6 @@ class BookmarkItemCreateView(SetAuthorMixin, generics.CreateAPIView):
 class ProfileDetailsView(generics.RetrieveAPIView):
     serializer_class = ProfileDetailSerializer
     queryset = Profile.objects.all()
-
 
 
 class UserPostListView(generics.ListAPIView):

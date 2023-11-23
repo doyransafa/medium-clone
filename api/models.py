@@ -1,11 +1,13 @@
 import os
 import random
 import shutil
-from typing import Iterable, Optional
 from PIL import Image, ImageDraw, ImageFont
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.text import slugify
+import uuid
+from django.core.files.storage import default_storage
+
 
 # Create your models here.
 
@@ -17,6 +19,27 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.username
+
+
+def get_default_image_path(username):
+    # Generate a default image (similar to what you've done)
+    random_color = (random.randint(0, 255), random.randint(
+        0, 255), random.randint(0, 255))
+    image = Image.new('RGB', (300, 300), color=random_color)
+    first_letter = username[0].upper()
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(size=288)
+    text_position = (75, -50)
+    draw.text(text_position, first_letter, font=font, fill=(255, 255, 255))
+
+    # Save the image to the default storage (S3 bucket)
+    filename = f'{username}_profile_picture.png'
+    file_path = os.path.join('profile_pictures', username, filename)
+    image_io = default_storage.open(file_path, 'wb')
+    image.save(image_io, format='PNG')
+    image_io.close()
+    
+    return file_path
 
 
 def get_upload_path(instance, filename):
@@ -31,35 +54,18 @@ class Profile(models.Model):
         return f'{self.user.username} profile'
     
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
 
-        #implement a way to delete old profile pictures!
         if not self.profile_picture:
-            random_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            # Generate default image path
+            default_image_path = get_default_image_path(self.user.username)
+            self.profile_picture = default_image_path
 
-            image = Image.new('RGB', (300, 300), color=random_color)
-
-            first_letter = self.user.username[0].upper()
-
-            draw = ImageDraw.Draw(image)
-            font = ImageFont.load_default(size=288)
-            text_position = (75,-50)
-            draw.text(text_position, first_letter, font=font, fill=(255, 255, 255))
-
-            user_directory = os.path.join('media/profile_pictures', self.user.username)
-            os.makedirs(user_directory, exist_ok=True)
-            filename = f'{self.user.username}_profile_picture.png'
-            file_path = os.path.join('profile_pictures', self.user.username, filename)
-            image.save(f'media/{file_path}')
-
-            # Update the profile_picture field
-            self.profile_picture = file_path
-            self.save()
+        super().save(*args, **kwargs)
     
     def delete(self, *args, **kwargs):
 
         if self.profile_picture:
-            shutil.rmtree(os.path.join('media/profile_pictures', self.user.username))
+            shutil.rmtree(os.path.join('profile_pictures', self.user.username))
 
         super().delete(*args, **kwargs)
 
@@ -78,9 +84,9 @@ class Tag(models.Model):
 
 def upload_cover_image(instance, filename):
     username = instance.author.user.username
-    post_id = instance.id
-    path = f'media/cover_images/{username}/post_{post_id}/'
-    return os.path.join(path, filename)
+    id = uuid.uuid4()
+    path = f'cover_images/{username}/{id}/{filename}'
+    return path
 
 class Post(models.Model):
     title = models.CharField(max_length=250)
@@ -91,14 +97,17 @@ class Post(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     likes = models.ManyToManyField(User, through='Like', related_name='liked_posts')
     read_length_minutes = models.IntegerField(null=True, default=0)
-    cover_image = models.ImageField(upload_to=upload_cover_image, null=True, default=None)
+    cover_image = models.ImageField(upload_to=upload_cover_image, null=True, default='')
 
     def __str__(self):
         return f'{self.author.user.username} profile'
     
     def save(self, *args, **kwargs):
         self.read_length_minutes = round(len(self.body.split(' ')) * 0.25 / 60)
-        super().save(*args, **kwargs)
+        super().save(*args, **kwargs)  # If it's not a new post, proceed with normal save
+
+
+
 
     class Meta:
         ordering = ['-created_at']

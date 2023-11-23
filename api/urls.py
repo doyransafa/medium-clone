@@ -22,7 +22,6 @@ urlpatterns = [
     path('comment/<int:post_id>', CommentListCreateView.as_view(), name='post_comments'),
     path('comment/<int:comment_id>', CommentDetailView.as_view(), name='comment_details'),
     path('bookmark/add/<int:post_id>/<int:list_id>', BookmarkItemCreateView.as_view(), name='bookmark_toggle'), ##
-    # path('bookmark/<int:post_id>', CommentListCreateView.as_view(), name='bookmark_details'), ##
     
     path('profile/<int:profile_id>/follow', FollowCreateView.as_view(), name='follow_unfollow'),
     path('profile/<int:profile_id>/followers', FollowersListView.as_view(), name='follower_list'),
